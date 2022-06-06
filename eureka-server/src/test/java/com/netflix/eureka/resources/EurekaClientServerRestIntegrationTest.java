@@ -90,6 +90,9 @@ public class EurekaClientServerRestIntegrationTest {
                 serverCodecs,
                 eurekaServiceUrl
         );
+
+        // 启动后一直挂起
+        Thread.sleep(Integer.MAX_VALUE);
     }
 
     @AfterClass
@@ -232,6 +235,25 @@ public class EurekaClientServerRestIntegrationTest {
     }
 
     private static void startServer() throws Exception {
+//        startServerByWar();
+        // 调试的时候，不用每次都打成war，直接从class启动eureka server
+        startServerByClass();
+
+        eurekaServiceUrl = "http://localhost:8080/v2";
+    }
+
+    private static void startServerByClass() throws Exception {
+        server = new Server(8080);
+
+        WebAppContext webAppCtx = new WebAppContext(new File("./eureka-server/src/main/webapp").getAbsolutePath(), "/");
+        webAppCtx.setDescriptor(new File("./eureka-server/src/main/webapp/WEB-INF/web.xml").getAbsolutePath());
+        webAppCtx.setResourceBase(new File("./eureka-server/src/main/resources").getAbsolutePath());
+        webAppCtx.setClassLoader(Thread.currentThread().getContextClassLoader());
+        server.setHandler(webAppCtx);
+        server.start();
+    }
+
+    private static void startServerByWar() throws Exception {
         File warFile = findWar();
 
         server = new Server(8080);
@@ -242,9 +264,8 @@ public class EurekaClientServerRestIntegrationTest {
         server.setHandler(webapp);
 
         server.start();
-
-        eurekaServiceUrl = "http://localhost:8080/v2";
     }
+
 
     private static File findWar() {
         File dir = null;
