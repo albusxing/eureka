@@ -182,9 +182,10 @@ public class ApplicationResource {
                 }
             }
         }
-
+        // 往注册表中添加实例
         registry.register(info, "true".equals(isReplication));
-        return Response.status(204).build();  // 204 to be backwards compatible
+        // 204 to be backwards compatible
+        return Response.status(204).build();
     }
 
     /**

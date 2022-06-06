@@ -91,6 +91,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     private ConcurrentLinkedQueue<RecentlyChangedItem> recentlyChangedQueue = new ConcurrentLinkedQueue<>();
 
     private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    // 读写锁的应用
     private final Lock read = readWriteLock.readLock();
     private final Lock write = readWriteLock.writeLock();
     protected final Object lock = new Object();
@@ -102,6 +103,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     private final AtomicReference<EvictionTask> evictionTaskRef = new AtomicReference<>();
 
     protected String[] allKnownRemoteRegions = EMPTY_STR_ARRAY;
+    //
     protected volatile int numberOfRenewsPerMinThreshold;
     protected volatile int expectedNumberOfClientsSendingRenews;
 
@@ -187,10 +189,20 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
 
     /**
      * Registers a new instance with a given duration.
-     *
+     * 注册表的内部数据结构：ConcurrentHashMap<String, Map<String, Lease<InstanceInfo>>>
      * @see com.netflix.eureka.lease.LeaseManager#register(java.lang.Object, int, boolean)
      */
+    @Override
     public void register(InstanceInfo registrant, int leaseDuration, boolean isReplication) {
+        // 加读锁
+        /**
+         * read.lock();
+         * try {
+         *   // 业务逻辑
+         * } finally {
+         *   read.unlock();
+         * }
+         */
         read.lock();
         try {
             Map<String, Lease<InstanceInfo>> gMap = registry.get(registrant.getAppName());
@@ -204,7 +216,9 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             }
             Lease<InstanceInfo> existingLease = gMap.get(registrant.getId());
             // Retain the last dirty timestamp without overwriting it, if there is already a lease
+            //
             if (existingLease != null && (existingLease.getHolder() != null)) {
+                //
                 Long existingLastDirtyTimestamp = existingLease.getHolder().getLastDirtyTimestamp();
                 Long registrationLastDirtyTimestamp = registrant.getLastDirtyTimestamp();
                 logger.debug("Existing lease found (existing={}, provided={}", existingLastDirtyTimestamp, registrationLastDirtyTimestamp);
@@ -219,6 +233,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 }
             } else {
                 // The lease does not exist and hence it is a new registration
+                // 避免多线程并发问题
                 synchronized (lock) {
                     if (this.expectedNumberOfClientsSendingRenews > 0) {
                         // Since the client wants to register it, increase the number of clients sending renews
@@ -228,6 +243,8 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 }
                 logger.debug("No previous lease information found; it is new registration");
             }
+
+            //
             Lease<InstanceInfo> lease = new Lease<>(registrant, leaseDuration);
             if (existingLease != null) {
                 lease.setServiceUpTimestamp(existingLease.getServiceUpTimestamp());
@@ -261,6 +278,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             }
             registrant.setActionType(ActionType.ADDED);
             recentlyChangedQueue.add(new RecentlyChangedItem(lease));
+            // 设置最新更新时间
             registrant.setLastUpdatedTimestamp();
             invalidateCache(registrant.getAppName(), registrant.getVIPAddress(), registrant.getSecureVipAddress());
             logger.info("Registered instance {}/{} with status {} (replication={})",

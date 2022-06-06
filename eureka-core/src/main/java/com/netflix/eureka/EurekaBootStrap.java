@@ -129,6 +129,7 @@ public class EurekaBootStrap implements ServletContextListener {
     protected void initEurekaEnvironment() throws Exception {
         logger.info("Setting the eureka configuration..");
         // 根据配置初始化 eureka的数据中心和运行环境
+        // ConfigurationManager 使用了单例模式，采用的是双重检查锁实现的。
         String dataCenter = ConfigurationManager.getConfigInstance().getString(EUREKA_DATACENTER);
         if (dataCenter == null) {
             logger.info("Eureka data center value eureka.datacenter is not set, defaulting to default");
