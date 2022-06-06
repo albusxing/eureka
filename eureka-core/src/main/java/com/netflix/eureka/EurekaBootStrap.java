@@ -110,7 +110,9 @@ public class EurekaBootStrap implements ServletContextListener {
     @Override
     public void contextInitialized(ServletContextEvent event) {
         try {
+            // 初始化eureka环境信息
             initEurekaEnvironment();
+            // 初始化eureka server 上下文
             initEurekaServerContext();
 
             ServletContext sc = event.getServletContext();
@@ -126,7 +128,7 @@ public class EurekaBootStrap implements ServletContextListener {
      */
     protected void initEurekaEnvironment() throws Exception {
         logger.info("Setting the eureka configuration..");
-
+        // 根据配置初始化 eureka的数据中心和运行环境
         String dataCenter = ConfigurationManager.getConfigInstance().getString(EUREKA_DATACENTER);
         if (dataCenter == null) {
             logger.info("Eureka data center value eureka.datacenter is not set, defaulting to default");
@@ -145,6 +147,7 @@ public class EurekaBootStrap implements ServletContextListener {
      * init hook for server context. Override for custom logic.
      */
     protected void initEurekaServerContext() throws Exception {
+        // 第一步：加载eureka-sever.properties配置文件信息
         EurekaServerConfig eurekaServerConfig = new DefaultEurekaServerConfig();
 
         // For backward compatibility
@@ -155,16 +158,18 @@ public class EurekaBootStrap implements ServletContextListener {
         logger.info(eurekaServerConfig.getJsonCodecName());
         ServerCodecs serverCodecs = new DefaultServerCodecs(eurekaServerConfig);
 
+        // 第二步：初始化ApplicationInfoManager
         ApplicationInfoManager applicationInfoManager = null;
 
         if (eurekaClient == null) {
+            // 2.1 读取eureka-client.properties文件，初始化EurekaInstanceConfig 对象
             EurekaInstanceConfig instanceConfig = isCloud(ConfigurationManager.getDeploymentContext())
                     ? new CloudInstanceConfig()
                     : new MyDataCenterInstanceConfig();
-            
+            // 2.2 使用构建者模式构建一个InstanceInfo对象，然后使用InstanceInfo构建一个ApplicationInfoManager
             applicationInfoManager = new ApplicationInfoManager(
                     instanceConfig, new EurekaConfigBasedInstanceInfoProvider(instanceConfig).get());
-            
+            // 第三步：初始化eureka-server内部的eureka-client。这个eureka-client是用来跟其他eureka-server节点进行注册和通信的
             EurekaClientConfig eurekaClientConfig = new DefaultEurekaClientConfig();
             eurekaClient = new DiscoveryClient(applicationInfoManager, eurekaClientConfig);
         } else {
