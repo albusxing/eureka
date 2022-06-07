@@ -89,7 +89,7 @@ public class ResponseCacheImpl implements ResponseCache {
     private final AtomicLong versionDelta = new AtomicLong(0);
     private final AtomicLong versionDeltaWithRegions = new AtomicLong(0);
 
-    private final Timer serializeAllAppsTimer = Monitors.newTimer("serialize-all");
+    private final Timer serializeAllAppsTimer  = Monitors.newTimer("serialize-all");
     private final Timer serializeDeltaAppsTimer = Monitors.newTimer("serialize-all-delta");
     private final Timer serializeAllAppsWithRemoteRegionTimer = Monitors.newTimer("serialize-all_remote_region");
     private final Timer serializeDeltaAppsWithRemoteRegionTimer = Monitors.newTimer("serialize-all-delta_remote_region");
@@ -105,15 +105,10 @@ public class ResponseCacheImpl implements ResponseCache {
      * around till expiry. Github issue: https://github.com/Netflix/eureka/issues/118
      */
     private final Multimap<Key, Key> regionSpecificKeys =
-            Multimaps.newListMultimap(new ConcurrentHashMap<Key, Collection<Key>>(), new Supplier<List<Key>>() {
-                @Override
-                public List<Key> get() {
-                    return new CopyOnWriteArrayList<Key>();
-                }
-            });
+            Multimaps.newListMultimap(new ConcurrentHashMap<>(), CopyOnWriteArrayList::new);
 
     // 只读缓存
-    private final ConcurrentMap<Key, Value> readOnlyCacheMap = new ConcurrentHashMap<Key, Value>();
+    private final ConcurrentMap<Key, Value> readOnlyCacheMap = new ConcurrentHashMap<>();
 
     // 读写缓存
     private final LoadingCache<Key, Value> readWriteCacheMap;
@@ -130,17 +125,15 @@ public class ResponseCacheImpl implements ResponseCache {
         this.registry = registry;
 
         long responseCacheUpdateIntervalMs = serverConfig.getResponseCacheUpdateIntervalMs();
+        // 使用
         this.readWriteCacheMap =
                 CacheBuilder.newBuilder().initialCapacity(serverConfig.getInitialCapacityOfResponseCache())
                         .expireAfterWrite(serverConfig.getResponseCacheAutoExpirationInSeconds(), TimeUnit.SECONDS)
-                        .removalListener(new RemovalListener<Key, Value>() {
-                            @Override
-                            public void onRemoval(RemovalNotification<Key, Value> notification) {
-                                Key removedKey = notification.getKey();
-                                if (removedKey.hasRegions()) {
-                                    Key cloneWithNoRegions = removedKey.cloneWithoutRegions();
-                                    regionSpecificKeys.remove(cloneWithNoRegions, removedKey);
-                                }
+                        .removalListener((RemovalListener<Key, Value>) notification -> {
+                            Key removedKey = notification.getKey();
+                            if (removedKey.hasRegions()) {
+                                Key cloneWithNoRegions = removedKey.cloneWithoutRegions();
+                                regionSpecificKeys.remove(cloneWithNoRegions, removedKey);
                             }
                         })
                         .build(new CacheLoader<Key, Value>() {
@@ -150,6 +143,7 @@ public class ResponseCacheImpl implements ResponseCache {
                                     Key cloneWithNoRegions = key.cloneWithoutRegions();
                                     regionSpecificKeys.put(cloneWithNoRegions, key);
                                 }
+                                //
                                 Value value = generatePayload(key);
                                 return value;
                             }
@@ -180,6 +174,8 @@ public class ResponseCacheImpl implements ResponseCache {
                                 key.getEntityType(), key.getName(), key.getVersion(), key.getType());
                     }
                     try {
+                        // 如果读写缓存中的值与只读缓存中的值不一样
+                        // 就更新只读缓存中的值
                         CurrentRequestVersion.set(key.getVersion());
                         Value cacheValue = readWriteCacheMap.get(key);
                         Value currentCacheValue = readOnlyCacheMap.get(key);
@@ -419,7 +415,7 @@ public class ResponseCacheImpl implements ResponseCache {
             switch (key.getEntityType()) {
                 case Application:
                     boolean isRemoteRegionRequested = key.hasRegions();
-
+                    // 如果读写缓存中没有数据，就从注册表中获取所有的服务，然后进行序列化，存到读写缓存中
                     if (ALL_APPS.equals(key.getName())) {
                         if (isRemoteRegionRequested) {
                             tracer = serializeAllAppsWithRemoteRegionTimer.start();
