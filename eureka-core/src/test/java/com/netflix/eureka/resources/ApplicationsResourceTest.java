@@ -42,6 +42,10 @@ public class ApplicationsResourceTest extends AbstractTester {
         }
     }
 
+    /**
+     * 测试全量抓取注册表
+     * @throws Exception
+     */
     @Test
     public void testFullAppsGetJson() throws Exception {
         Response response = applicationsResource.getContainers(
