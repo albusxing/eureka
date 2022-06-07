@@ -214,6 +214,9 @@ public class EurekaBootStrap implements ServletContextListener {
                 applicationInfoManager
         );
 
+        // 将eurekaServerContext放入到EurekaServerContextHolder中
+        // 为什么？
+        // 让EurekaServerContextHolder持有EurekaServerContext,方便在其他地方使用，比如：status.jsp页面
         EurekaServerContextHolder.initialize(serverContext);
 
         serverContext.initialize();
