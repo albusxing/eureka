@@ -106,6 +106,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
     protected String[] allKnownRemoteRegions = EMPTY_STR_ARRAY;
     //
     protected volatile int numberOfRenewsPerMinThreshold;
+    // 期望每分钟
     protected volatile int expectedNumberOfClientsSendingRenews;
 
     protected final EurekaServerConfig serverConfig;
@@ -640,18 +641,20 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
 
         // To compensate for GC pauses or drifting local time, we need to use current registry size as a base for
         // triggering self-preservation. Without that we would wipe out full registry.
+        // 注册表中服务实例的总数是100个，所以服务实例故障摘除的上线数就是是15个。
+        // 此时，如果发送故障的实例数小于15个，比如说10个，就摘除10个；如果发送故障的服务实例大于15个，比如说20个，那么就摘除15个。
         int registrySize = (int) getLocalRegistrySize();
         int registrySizeThreshold = (int) (registrySize * serverConfig.getRenewalPercentThreshold());
-        // 分批摘除，每次只摘除15%
+        // 分批摘除，每次只摘除注册表中服务实例总数的15%
         int evictionLimit = registrySize - registrySizeThreshold;
-        // 总共的数目
+        // 最终要摘除的故障实例数目
         int toEvict = Math.min(expiredLeases.size(), evictionLimit);
         if (toEvict > 0) {
             logger.info("Evicting {} items (expired={}, evictionLimit={})", toEvict, expiredLeases.size(), evictionLimit);
 
             Random random = new Random(System.currentTimeMillis());
             for (int i = 0; i < toEvict; i++) {
-                // 洗牌算法
+                // 这里使用洗牌算法，随机摘除 toEvict 个实例。
                 // Pick a random item (Knuth shuffle algorithm)
                 int next = i + random.nextInt(expiredLeases.size() - i);
                 Collections.swap(expiredLeases, i, next);
