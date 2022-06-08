@@ -17,6 +17,7 @@
 package com.netflix.eureka.registry;
 
 import javax.annotation.Nullable;
+import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.AbstractQueue;
@@ -280,6 +281,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             recentlyChangedQueue.add(new RecentlyChangedItem(lease));
             // 设置最新更新时间
             registrant.setLastUpdatedTimestamp();
+            // 更新多级缓存中的数据
             invalidateCache(registrant.getAppName(), registrant.getVIPAddress(), registrant.getSecureVipAddress());
             logger.info("Registered instance {}/{} with status {} (replication={})",
                     registrant.getAppName(), registrant.getId(), registrant.getStatus(), isReplication);
@@ -319,8 +321,10 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             Map<String, Lease<InstanceInfo>> gMap = registry.get(appName);
             Lease<InstanceInfo> leaseToCancel = null;
             if (gMap != null) {
+                // 从注册表map中移除服务实例
                 leaseToCancel = gMap.remove(id);
             }
+            // 添加到最近取消的队列中
             recentCanceledQueue.add(new Pair<Long, String>(System.currentTimeMillis(), appName + "(" + id + ")"));
             InstanceStatus instanceStatus = overriddenInstanceStatusMap.remove(id);
             if (instanceStatus != null) {
@@ -331,17 +335,21 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 logger.warn("DS: Registry: cancel failed because Lease is not registered for: {}/{}", appName, id);
                 return false;
             } else {
+                // 取消租约，保存evictionTimestamp
                 leaseToCancel.cancel();
                 InstanceInfo instanceInfo = leaseToCancel.getHolder();
                 String vip = null;
                 String svip = null;
                 if (instanceInfo != null) {
                     instanceInfo.setActionType(ActionType.DELETED);
+                    // 保存到最近发生变化的队列中
                     recentlyChangedQueue.add(new RecentlyChangedItem(leaseToCancel));
+                    // 更新lastUpdatedTimestamp
                     instanceInfo.setLastUpdatedTimestamp();
                     vip = instanceInfo.getVIPAddress();
                     svip = instanceInfo.getSecureVipAddress();
                 }
+                // 失效eureka server中的多级缓存
                 invalidateCache(appName, vip, svip);
                 logger.info("Cancelled instance {}/{} (replication={})", appName, id, isReplication);
             }
@@ -366,8 +374,10 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
      *
      * @see com.netflix.eureka.lease.LeaseManager#renew(java.lang.String, java.lang.String, boolean)
      */
+    @Override
     public boolean renew(String appName, String id, boolean isReplication) {
         RENEW.increment(isReplication);
+        // 根据服务名称和实例id，从注册表中取出租约信息
         Map<String, Lease<InstanceInfo>> gMap = registry.get(appName);
         Lease<InstanceInfo> leaseToRenew = null;
         if (gMap != null) {
@@ -378,6 +388,8 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
             logger.warn("DS: Registry: lease doesn't exist, registering resource: {} - {}", appName, id);
             return false;
         } else {
+            // 拿到租约信息后，从中取出服务实例信息
+            // 检查一下服务实例的状态，然后更新最近更新时间
             InstanceInfo instanceInfo = leaseToRenew.getHolder();
             if (instanceInfo != null) {
                 // touchASGCache(instanceInfo.getASGName());
@@ -400,6 +412,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 }
             }
             renewsLastMin.increment();
+            // 将lastUpdateTimestamp再往后 + 90s
             leaseToRenew.renew();
             return true;
         }
@@ -629,14 +642,16 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         // triggering self-preservation. Without that we would wipe out full registry.
         int registrySize = (int) getLocalRegistrySize();
         int registrySizeThreshold = (int) (registrySize * serverConfig.getRenewalPercentThreshold());
+        // 分批摘除，每次只摘除15%
         int evictionLimit = registrySize - registrySizeThreshold;
-
+        // 总共的数目
         int toEvict = Math.min(expiredLeases.size(), evictionLimit);
         if (toEvict > 0) {
             logger.info("Evicting {} items (expired={}, evictionLimit={})", toEvict, expiredLeases.size(), evictionLimit);
 
             Random random = new Random(System.currentTimeMillis());
             for (int i = 0; i < toEvict; i++) {
+                // 洗牌算法
                 // Pick a random item (Knuth shuffle algorithm)
                 int next = i + random.nextInt(expiredLeases.size() - i);
                 Collections.swap(expiredLeases, i, next);
@@ -646,9 +661,35 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 String id = lease.getHolder().getId();
                 EXPIRED.increment();
                 logger.warn("DS: Registry: expired lease for {}/{}", appName, id);
+                // 摘除服务实例，本质是让服务下线
                 internalCancel(appName, id, false);
             }
         }
+    }
+
+    public static void main(String[] args) {
+
+
+        /**
+         * 测试洗牌算法
+         */
+        List<Lease<Object>> expiredLeases = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            Lease<Object> lease = new Lease<>(new Object(), 30);
+            expiredLeases.add(lease);
+        }
+        int evictionLimit = 15;
+        int toEvict = Math.min(expiredLeases.size(), evictionLimit);
+        Random random = new Random(System.currentTimeMillis());
+        for (int i = 0; i < toEvict; i++) {
+            // 洗牌算法
+            // Pick a random item (Knuth shuffle algorithm)
+            int next = i + random.nextInt(expiredLeases.size() - i);
+            Collections.swap(expiredLeases, i, next);
+            Lease<Object> lease = expiredLeases.get(i);
+            System.out.println(lease);
+        }
+
     }
 
 
@@ -707,6 +748,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
      *
      * @see com.netflix.discovery.shared.LookupService#getApplications()
      */
+    @Override
     public Applications getApplications() {
         boolean disableTransparentFallback = serverConfig.disableTransparentFallbackToOtherRegion();
         if (disableTransparentFallback) {
@@ -1261,6 +1303,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         @Override
         public void run() {
             try {
+                // 获取补偿时间
                 long compensationTimeMs = getCompensationTimeMs();
                 logger.info("Running the evict task with compensationTime {}ms", compensationTimeMs);
                 evict(compensationTimeMs);
@@ -1278,13 +1321,19 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         long getCompensationTimeMs() {
             long currNanos = getCurrentTimeNano();
             long lastNanos = lastExecutionNanosRef.getAndSet(currNanos);
-            if (lastNanos == 0l) {
-                return 0l;
+            if (lastNanos == 0L) {
+                return 0L;
             }
-
+            // 计算两者相差的毫秒数
             long elapsedMs = TimeUnit.NANOSECONDS.toMillis(currNanos - lastNanos);
+            // elapsedMs - 60s
+            /**
+             * 假设EvictionIntervalTimerInMs=3min
+             * 19:50:00 执行
+             * 19:58:00 过期
+             */
             long compensationTime = elapsedMs - serverConfig.getEvictionIntervalTimerInMs();
-            return compensationTime <= 0l ? 0l : compensationTime;
+            return Math.max(compensationTime, 0L);
         }
 
         long getCurrentTimeNano() {  // for testing

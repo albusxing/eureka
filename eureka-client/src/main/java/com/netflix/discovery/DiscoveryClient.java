@@ -184,6 +184,7 @@ public class DiscoveryClient implements EurekaClient {
     private final ThresholdLevelsMetric heartbeatStalenessMonitor;
     private final ThresholdLevelsMetric registryStalenessMonitor;
 
+    // 是否关闭条件，并发控制，只允许一个client执行
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
 
     protected final EurekaClientConfig clientConfig;
@@ -926,6 +927,7 @@ public class DiscoveryClient implements EurekaClient {
     }
 
     /**
+     * eureka client关闭方法
      * Shuts down Eureka Client. Also sends a deregistration request to the
      * eureka server.
      */
@@ -934,11 +936,11 @@ public class DiscoveryClient implements EurekaClient {
     public synchronized void shutdown() {
         if (isShutdown.compareAndSet(false, true)) {
             logger.info("Shutting down DiscoveryClient ...");
-
+            // 移除状态改变监听器
             if (statusChangeListener != null && applicationInfoManager != null) {
                 applicationInfoManager.unregisterStatusChangeListener(statusChangeListener.getId());
             }
-
+            // 关闭一系列定时任务
             cancelScheduledTasks();
 
             // If APPINFO was registered
@@ -946,9 +948,11 @@ public class DiscoveryClient implements EurekaClient {
                     && clientConfig.shouldRegisterWithEureka()
                     && clientConfig.shouldUnregisterOnShutdown()) {
                 applicationInfoManager.setInstanceStatus(InstanceStatus.DOWN);
+                /// 取消注册，进行服务下线
                 unregister();
             }
 
+            // 关闭网络通信组件
             if (eurekaTransport != null) {
                 eurekaTransport.shutdown();
             }
@@ -1138,11 +1142,12 @@ public class DiscoveryClient implements EurekaClient {
         long currentUpdateGeneration = fetchRegistryGeneration.get();
 
         Applications delta = null;
+        // 获取到的是最近3分钟内发生变化的服务实例
         EurekaHttpResponse<Applications> httpResponse = eurekaTransport.queryClient.getDelta(remoteRegionsRef.get());
         if (httpResponse.getStatusCode() == Status.OK.getStatusCode()) {
             delta = httpResponse.getEntity();
         }
-
+        // 如果增量数据为空，就会进行一次全量拉取
         if (delta == null) {
             logger.warn("The server does not allow the delta revision to be applied because it is not safe. "
                     + "Hence got the full registry.");
@@ -1150,6 +1155,7 @@ public class DiscoveryClient implements EurekaClient {
         } else if (fetchRegistryGeneration.compareAndSet(currentUpdateGeneration, currentUpdateGeneration + 1)) {
             logger.debug("Got delta update with apps hashcode {}", delta.getAppsHashCode());
             String reconcileHashCode = "";
+            // 加 ReentrantLock
             if (fetchRegistryUpdateLock.tryLock()) {
                 try {
                     updateDelta(delta);
@@ -1161,7 +1167,8 @@ public class DiscoveryClient implements EurekaClient {
                 logger.warn("Cannot acquire update lock, aborting getAndUpdateDelta");
             }
             // There is a diff in number of instances for some reason
-            if (!reconcileHashCode.equals(delta.getAppsHashCode()) || clientConfig.shouldLogDeltaDiff()) {
+            // 将本地合并完成后的注册表进行一次hash，与 eureka server端的hash值进行对比
+             if (!reconcileHashCode.equals(delta.getAppsHashCode()) || clientConfig.shouldLogDeltaDiff()) {
                 reconcileAndLogDifference(delta, reconcileHashCode);  // this makes a remoteCall
             }
         } else {
