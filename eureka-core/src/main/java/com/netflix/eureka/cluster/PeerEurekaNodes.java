@@ -83,7 +83,10 @@ public class PeerEurekaNodes {
                     }
                 }
         );
+
+
         try {
+            // 先执行一次
             updatePeerEurekaNodes(resolvePeerUrls());
             Runnable peersUpdateTask = new Runnable() {
                 @Override
@@ -96,6 +99,7 @@ public class PeerEurekaNodes {
 
                 }
             };
+            // 再启动一个调度任务，每隔10分钟执行一次
             taskExecutor.scheduleWithFixedDelay(
                     peersUpdateTask,
                     serverConfig.getPeerEurekaNodesUpdateIntervalMs(),
@@ -186,6 +190,7 @@ public class PeerEurekaNodes {
         if (!toAdd.isEmpty()) {
             logger.info("Adding new peer nodes {}", toAdd);
             for (String peerUrl : toAdd) {
+                // 根据配置的 peerUrl 初始化 PeerEurekaNode
                 newNodeList.add(createPeerEurekaNode(peerUrl));
             }
         }

@@ -464,6 +464,7 @@ public class DiscoveryClient implements EurekaClient {
 
         if (clientConfig.shouldRegisterWithEureka() && clientConfig.shouldEnforceRegistrationAtInit()) {
             try {
+                // 这里有一个注册
                 if (!register() ) {
                     throw new IllegalStateException("Registration error at startup. Invalid server response.");
                 }
@@ -1463,10 +1464,12 @@ public class DiscoveryClient implements EurekaClient {
     }
 
     /**
+     * 心跳线程/服务续约线程
      * The heartbeat task that renews the lease in the given intervals.
      */
     private class HeartbeatThread implements Runnable {
 
+        @Override
         public void run() {
             if (renew()) {
                 lastSuccessfulHeartbeatTimestamp = System.currentTimeMillis();
@@ -1508,6 +1511,7 @@ public class DiscoveryClient implements EurekaClient {
      *
      */
     class CacheRefreshThread implements Runnable {
+        @Override
         public void run() {
             refreshRegistry();
         }

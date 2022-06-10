@@ -64,6 +64,8 @@ public class PeerReplicationResource {
     }
 
     /**
+     * 处理批量复制请求
+     * 包括注册、心跳、下线等
      * Process batched replication events from peer eureka nodes.
      *
      * <p>
