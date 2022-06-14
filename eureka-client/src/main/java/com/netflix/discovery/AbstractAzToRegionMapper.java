@@ -26,6 +26,7 @@ public abstract class AbstractAzToRegionMapper implements AzToRegionMapper {
 
     protected final EurekaClientConfig clientConfig;
 
+
     /**
      * A default for the mapping that we know of, if a remote region is configured to be fetched but does not have
      * any availability zone mapping, we will use these defaults. OTOH, if the remote region has any mapping defaults

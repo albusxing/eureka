@@ -462,6 +462,7 @@ public class DiscoveryClient implements EurekaClient {
             this.preRegistrationHandler.beforeRegistration();
         }
 
+        // 是否在初始化的时候，立即进行服务注册
         if (clientConfig.shouldRegisterWithEureka() && clientConfig.shouldEnforceRegistrationAtInit()) {
             try {
                 // 这里有一个注册
