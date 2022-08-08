@@ -41,6 +41,7 @@ import com.netflix.discovery.EurekaClientConfig;
  *
  * In this example, the program tries to get the example from the EurekaClient, and then
  * makes a REST call to a supported service endpoint
+ * Eureka Client 单元测试
  *
  */
 public class ExampleEurekaClient {
@@ -137,6 +138,11 @@ public class ExampleEurekaClient {
         System.setProperty("eureka.numberRegistrySyncRetries", "0");
     }
 
+    /**
+     * 启动eureka client 进行服务注册
+     * @param args
+     * @throws UnknownHostException
+     */
     public static void main(String[] args) throws UnknownHostException {
         // 初始化一些eureka 配置参数
         injectEurekaConfiguration();
