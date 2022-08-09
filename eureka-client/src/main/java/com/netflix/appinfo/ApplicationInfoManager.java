@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  * {@link MyDataCenterInstanceConfig} or very basic
  * {@link AbstractInstanceConfig}.
  * </p>
- *
+ * ApplicationInfoManager表示的是服务实例管理器，内部包含服务实例配置信息、服务实例、服务实例状态变更监听器
  *
  * @author Karthik Ranganathan, Greg Kim
  *

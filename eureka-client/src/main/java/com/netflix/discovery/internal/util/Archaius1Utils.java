@@ -30,6 +30,9 @@ public final class Archaius1Utils {
 
         String eurekaPropsFile = EUREKA_PROPS_FILE.get();
         try {
+            // 读取 eureka-client.properties文件
+            // 读取 eureka-client-{env}.properties文件
+            // 后面的覆盖前面
             ConfigurationManager.loadCascadedPropertiesFromResources(eurekaPropsFile);
         } catch (IOException e) {
             logger.warn(

@@ -110,13 +110,11 @@ public class DefaultEurekaServerConfig implements EurekaServerConfig {
         // eurekaPropsFile 对应的就是 eureka-server.properties文件
         String eurekaPropsFile = EUREKA_PROPS_FILE.get();
         try {
-            // ConfigurationManager
-            // .loadPropertiesFromResources(eurekaPropsFile);
+            // ConfigurationManager.loadPropertiesFromResources(eurekaPropsFile);
             // 将eureka-server.properties文件中的配置，加载到Properties对象中
             // 然后加载eureka-server-{env}.properties文件中的配置，加载到另一个Properties对象中，
             // 使用后一个Properties对象覆盖之前的Properties对象中的属性
-            ConfigurationManager
-                    .loadCascadedPropertiesFromResources(eurekaPropsFile);
+            ConfigurationManager.loadCascadedPropertiesFromResources(eurekaPropsFile);
         } catch (IOException e) {
             logger.warn(
                     "Cannot find the properties specified : {}. This may be okay if there are other environment "

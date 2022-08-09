@@ -103,18 +103,19 @@ public class EurekaBootStrap implements ServletContextListener {
 
     /**
      * Initializes Eureka, including syncing up with other Eureka peers and publishing the registry.
-     *
+     * Eureka Server 启动初始化的核心逻辑
      * @see
      * javax.servlet.ServletContextListener#contextInitialized(javax.servlet.ServletContextEvent)
      */
     @Override
     public void contextInitialized(ServletContextEvent event) {
         try {
-            // 初始化eureka环境信息
+            // 初始化eureka环境信息。环境信息指的是在哪个数据中心？运行的是什么环境（dev or test）？
             initEurekaEnvironment();
-            // 初始化eureka server 上下文
+            // 初始化eureka server上下文(EurekaServerContext)
             initEurekaServerContext();
 
+            // 把EurekaServerContext 放到 ServletContext中，方便status.jsp中能够直接获取到
             ServletContext sc = event.getServletContext();
             sc.setAttribute(EurekaServerContext.class.getName(), serverContext);
         } catch (Throwable e) {
@@ -159,11 +160,11 @@ public class EurekaBootStrap implements ServletContextListener {
         logger.info(eurekaServerConfig.getJsonCodecName());
         ServerCodecs serverCodecs = new DefaultServerCodecs(eurekaServerConfig);
 
-        // 第二步：初始化ApplicationInfoManager
+        // 第二步：初始化服务实例管理器ApplicationInfoManager
         ApplicationInfoManager applicationInfoManager = null;
 
         if (eurekaClient == null) {
-            // 2.1 读取eureka-client.properties文件，初始化EurekaInstanceConfig 对象
+            // 2.1 读取eureka-client.properties文件中服务实例相关的属性，初始化EurekaInstanceConfig 对象
             EurekaInstanceConfig instanceConfig = isCloud(ConfigurationManager.getDeploymentContext())
                     ? new CloudInstanceConfig()
                     : new MyDataCenterInstanceConfig();
@@ -178,6 +179,7 @@ public class EurekaBootStrap implements ServletContextListener {
         }
 
         // 第四步：处理eureka server集群中服务实例注册相关事宜
+        // EurekaServer集群服务实例注册表
         PeerAwareInstanceRegistry registry;
         if (isAws(applicationInfoManager.getInfo())) {
             registry = new AwsInstanceRegistry(
